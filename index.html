@@ -2,217 +2,173 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>30초 생존 챌린지</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Land Capture</title>
 <style>
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    touch-action:none;
-}
-
 body{
-    overflow:hidden;
-    background:#111;
-    font-family:sans-serif;
+ margin:0;
+ overflow:hidden;
+ background:#111;
 }
-
 canvas{
-    display:block;
-    background:#181818;
+ display:block;
 }
-
-#timer{
-    position:absolute;
-    top:20px;
-    left:50%;
-    transform:translateX(-50%);
-    color:white;
-    font-size:32px;
-    font-weight:bold;
-    z-index:10;
-}
-
-#msg{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    color:white;
-    text-align:center;
-    font-size:38px;
-    font-weight:bold;
-    display:none;
-    z-index:20;
+#ui{
+ position:absolute;
+ top:10px;
+ left:10px;
+ color:white;
+ font-size:24px;
+ font-family:sans-serif;
 }
 </style>
 </head>
-
 <body>
 
-<div id="timer">30</div>
-<div id="msg"></div>
+<div id="ui">
+점수: <span id="score">0</span>
+</div>
 
 <canvas id="game"></canvas>
 
 <script>
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 
-function resize(){
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+
+const tile=20;
+
+const cols=Math.floor(canvas.width/tile);
+const rows=Math.floor(canvas.height/tile);
+
+const map=[];
+
+for(let y=0;y<rows;y++){
+ map[y]=[];
+ for(let x=0;x<cols;x++){
+  map[y][x]=0;
+ }
 }
-resize();
-window.addEventListener("resize", resize);
 
-const timerEl = document.getElementById("timer");
-const msgEl = document.getElementById("msg");
-
-const player = {
-    x: window.innerWidth/2,
-    y: window.innerHeight/2,
-    radius:18,
-    speed:4,
-    dx:0,
-    dy:0
+const player={
+ x:5,
+ y:5,
+ color:"#3fa9ff"
 };
 
-const enemies = [];
+const enemy={
+ x:cols-5,
+ y:rows-5,
+ color:"#ff4444"
+};
 
-function createEnemy(x,y){
-    enemies.push({
-        x,
-        y,
-        radius:22
-    });
+let score=0;
+
+function draw(){
+
+ ctx.fillStyle="#111";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ for(let y=0;y<rows;y++){
+  for(let x=0;x<cols;x++){
+
+   if(map[y][x]){
+    ctx.fillStyle="#3fa9ff";
+    ctx.fillRect(
+      x*tile,
+      y*tile,
+      tile,
+      tile
+    );
+   }
+  }
+ }
+
+ ctx.fillStyle=player.color;
+ ctx.beginPath();
+ ctx.arc(
+   player.x*tile+tile/2,
+   player.y*tile+tile/2,
+   tile/2,
+   0,
+   Math.PI*2
+ );
+ ctx.fill();
+
+ ctx.fillStyle=enemy.color;
+ ctx.beginPath();
+ ctx.arc(
+   enemy.x*tile+tile/2,
+   enemy.y*tile+tile/2,
+   tile/2,
+   0,
+   Math.PI*2
+ );
+ ctx.fill();
 }
 
-createEnemy(50,50);
-createEnemy(window.innerWidth-50,80);
-createEnemy(window.innerWidth/2,120);
+function capture(){
 
-let startTime = Date.now();
-let gameOver = false;
+ if(!map[player.y][player.x]){
+   map[player.y][player.x]=1;
+   score++;
+   document.getElementById("score").innerText=score;
+ }
+}
 
-function setDirection(x,y){
+function moveEnemy(){
 
-    const dx = x - player.x;
-    const dy = y - player.y;
+ const dx=player.x-enemy.x;
+ const dy=player.y-enemy.y;
 
-    const len = Math.sqrt(dx*dx + dy*dy);
+ if(Math.abs(dx)>Math.abs(dy)){
+   enemy.x+=Math.sign(dx);
+ }else{
+   enemy.y+=Math.sign(dy);
+ }
 
-    if(len === 0) return;
-
-    player.dx = dx / len;
-    player.dy = dy / len;
+ if(enemy.x===player.x &&
+    enemy.y===player.y){
+   alert("게임오버");
+   location.reload();
+ }
 }
 
 document.addEventListener("touchstart",(e)=>{
-    const touch = e.touches[0];
-    setDirection(touch.clientX,touch.clientY);
+
+ const touch=e.touches[0];
+
+ const cx=window.innerWidth/2;
+ const cy=window.innerHeight/2;
+
+ const dx=touch.clientX-cx;
+ const dy=touch.clientY-cy;
+
+ if(Math.abs(dx)>Math.abs(dy)){
+   player.x+=Math.sign(dx);
+ }else{
+   player.y+=Math.sign(dy);
+ }
+
+ player.x=Math.max(0,Math.min(cols-1,player.x));
+ player.y=Math.max(0,Math.min(rows-1,player.y));
+
+ capture();
 });
 
-document.addEventListener("touchmove",(e)=>{
-    const touch = e.touches[0];
-    setDirection(touch.clientX,touch.clientY);
-});
+setInterval(moveEnemy,300);
 
-document.addEventListener("mousedown",(e)=>{
-    setDirection(e.clientX,e.clientY);
-});
-
-function drawCircle(x,y,r,color){
-    ctx.beginPath();
-    ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.fillStyle=color;
-    ctx.fill();
+function loop(){
+ draw();
+ requestAnimationFrame(loop);
 }
 
-function endGame(win){
-
-    gameOver=true;
-
-    msgEl.style.display="block";
-
-    if(win){
-        msgEl.innerHTML =
-        "🎉 승리!<br><br>30초 생존 성공<br><br>화면 터치";
-    }else{
-        msgEl.innerHTML =
-        "💀 게임 오버<br><br>적에게 잡힘<br><br>화면 터치";
-    }
-
-    document.addEventListener("click",()=>location.reload(),{once:true});
-    document.addEventListener("touchstart",()=>location.reload(),{once:true});
-}
-
-function update(){
-
-    if(gameOver) return;
-
-    const elapsed = (Date.now()-startTime)/1000;
-    const remain = Math.max(0,Math.ceil(30-elapsed));
-
-    timerEl.innerText = remain;
-
-    player.x += player.dx * player.speed;
-    player.y += player.dy * player.speed;
-
-    if(player.x < player.radius) player.x = player.radius;
-    if(player.y < player.radius) player.y = player.radius;
-    if(player.x > canvas.width-player.radius)
-        player.x = canvas.width-player.radius;
-    if(player.y > canvas.height-player.radius)
-        player.y = canvas.height-player.radius;
-
-    enemies.forEach(enemy=>{
-
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
-
-        const dist = Math.sqrt(dx*dx + dy*dy);
-
-        const speed = 1.6 + elapsed * 0.08;
-
-        enemy.x += dx/dist * speed;
-        enemy.y += dy/dist * speed;
-
-        if(dist < player.radius + enemy.radius){
-            endGame(false);
-        }
-    });
-
-    if(elapsed >= 30){
-        endGame(true);
-    }
-}
-
-function render(){
-
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    drawCircle(player.x,player.y,player.radius,"#3da5ff");
-
-    enemies.forEach(enemy=>{
-        drawCircle(enemy.x,enemy.y,enemy.radius,"#ff4d4d");
-    });
-}
-
-function gameLoop(){
-
-    update();
-    render();
-
-    requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
+capture();
+loop();
 
 </script>
-
 </body>
 </html>
