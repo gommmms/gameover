@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>30초 생존</title>
+<title>30초 생존 챌린지</title>
 
 <style>
 *{
     margin:0;
     padding:0;
     box-sizing:border-box;
-    touch-action: manipulation;
+    touch-action:none;
 }
 
 body{
@@ -21,38 +21,39 @@ body{
 
 canvas{
     display:block;
-    background:#1c1c1c;
+    background:#181818;
 }
 
-#ui{
+#timer{
     position:absolute;
     top:20px;
     left:50%;
     transform:translateX(-50%);
     color:white;
-    font-size:28px;
+    font-size:32px;
     font-weight:bold;
     z-index:10;
 }
 
-#message{
+#msg{
     position:absolute;
     top:50%;
     left:50%;
     transform:translate(-50%,-50%);
     color:white;
     text-align:center;
-    font-size:42px;
+    font-size:38px;
     font-weight:bold;
     display:none;
+    z-index:20;
 }
 </style>
 </head>
 
 <body>
 
-<div id="ui">30</div>
-<div id="message"></div>
+<div id="timer">30</div>
+<div id="msg"></div>
 
 <canvas id="game"></canvas>
 
@@ -68,37 +69,60 @@ function resize(){
 resize();
 window.addEventListener("resize", resize);
 
+const timerEl = document.getElementById("timer");
+const msgEl = document.getElementById("msg");
+
 const player = {
-    x: canvas.width/2,
-    y: canvas.height-150,
-    radius: 20,
-    speed: 5,
-    dir: 1
+    x: window.innerWidth/2,
+    y: window.innerHeight/2,
+    radius:18,
+    speed:4,
+    dx:0,
+    dy:0
 };
 
-const enemy = {
-    x: canvas.width/2,
-    y: 100,
-    radius: 25,
-    speed: 2.4
-};
+const enemies = [];
 
-let gameOver = false;
-let startTime = Date.now();
-
-const ui = document.getElementById("ui");
-const message = document.getElementById("message");
-
-function restartGame(){
-    location.reload();
+function createEnemy(x,y){
+    enemies.push({
+        x,
+        y,
+        radius:22
+    });
 }
 
-document.addEventListener("touchstart", ()=>{
-    player.dir *= -1;
+createEnemy(50,50);
+createEnemy(window.innerWidth-50,80);
+createEnemy(window.innerWidth/2,120);
+
+let startTime = Date.now();
+let gameOver = false;
+
+function setDirection(x,y){
+
+    const dx = x - player.x;
+    const dy = y - player.y;
+
+    const len = Math.sqrt(dx*dx + dy*dy);
+
+    if(len === 0) return;
+
+    player.dx = dx / len;
+    player.dy = dy / len;
+}
+
+document.addEventListener("touchstart",(e)=>{
+    const touch = e.touches[0];
+    setDirection(touch.clientX,touch.clientY);
 });
 
-document.addEventListener("mousedown", ()=>{
-    player.dir *= -1;
+document.addEventListener("touchmove",(e)=>{
+    const touch = e.touches[0];
+    setDirection(touch.clientX,touch.clientY);
+});
+
+document.addEventListener("mousedown",(e)=>{
+    setDirection(e.clientX,e.clientY);
 });
 
 function drawCircle(x,y,r,color){
@@ -108,39 +132,59 @@ function drawCircle(x,y,r,color){
     ctx.fill();
 }
 
+function endGame(win){
+
+    gameOver=true;
+
+    msgEl.style.display="block";
+
+    if(win){
+        msgEl.innerHTML =
+        "🎉 승리!<br><br>30초 생존 성공<br><br>화면 터치";
+    }else{
+        msgEl.innerHTML =
+        "💀 게임 오버<br><br>적에게 잡힘<br><br>화면 터치";
+    }
+
+    document.addEventListener("click",()=>location.reload(),{once:true});
+    document.addEventListener("touchstart",()=>location.reload(),{once:true});
+}
+
 function update(){
 
     if(gameOver) return;
 
-    player.x += player.speed * player.dir;
+    const elapsed = (Date.now()-startTime)/1000;
+    const remain = Math.max(0,Math.ceil(30-elapsed));
 
-    if(player.x < player.radius){
-        player.x = player.radius;
-        player.dir = 1;
-    }
+    timerEl.innerText = remain;
 
-    if(player.x > canvas.width-player.radius){
+    player.x += player.dx * player.speed;
+    player.y += player.dy * player.speed;
+
+    if(player.x < player.radius) player.x = player.radius;
+    if(player.y < player.radius) player.y = player.radius;
+    if(player.x > canvas.width-player.radius)
         player.x = canvas.width-player.radius;
-        player.dir = -1;
-    }
+    if(player.y > canvas.height-player.radius)
+        player.y = canvas.height-player.radius;
 
-    let dx = player.x - enemy.x;
-    let dy = player.y - enemy.y;
-    let dist = Math.sqrt(dx*dx + dy*dy);
+    enemies.forEach(enemy=>{
 
-    enemy.x += (dx/dist) * enemy.speed;
-    enemy.y += (dy/dist) * enemy.speed;
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
 
-    const collisionDist = player.radius + enemy.radius;
+        const dist = Math.sqrt(dx*dx + dy*dy);
 
-    if(dist < collisionDist){
-        endGame(false);
-    }
+        const speed = 1.6 + elapsed * 0.08;
 
-    let elapsed = (Date.now() - startTime)/1000;
-    let remain = Math.ceil(30 - elapsed);
+        enemy.x += dx/dist * speed;
+        enemy.y += dy/dist * speed;
 
-    ui.textContent = remain;
+        if(dist < player.radius + enemy.radius){
+            endGame(false);
+        }
+    });
 
     if(elapsed >= 30){
         endGame(true);
@@ -151,37 +195,22 @@ function render(){
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    drawCircle(player.x, player.y, player.radius, "#4da6ff");
-    drawCircle(enemy.x, enemy.y, enemy.radius, "#ff4444");
+    drawCircle(player.x,player.y,player.radius,"#3da5ff");
+
+    enemies.forEach(enemy=>{
+        drawCircle(enemy.x,enemy.y,enemy.radius,"#ff4d4d");
+    });
 }
 
-function endGame(win){
-
-    gameOver = true;
-
-    message.style.display = "block";
-
-    if(win){
-        message.innerHTML =
-        "🎉 승리!<br><br>30초 생존 성공<br><br>터치하여 재시작";
-    }else{
-        message.innerHTML =
-        "💀 게임 오버<br><br>적에게 잡혔습니다<br><br>터치하여 재시작";
-    }
-
-    document.addEventListener("click", restartGame, {once:true});
-    document.addEventListener("touchstart", restartGame, {once:true});
-}
-
-function loop(){
+function gameLoop(){
 
     update();
     render();
 
-    requestAnimationFrame(loop);
+    requestAnimationFrame(gameLoop);
 }
 
-loop();
+gameLoop();
 
 </script>
 
