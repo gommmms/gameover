@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>30초 생존 + 확장 버전</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>30초 생존 + 코인 + 대시</title>
+
+<link rel="manifest" href="manifest.json">
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none;}
@@ -11,33 +13,33 @@ body{overflow:hidden;background:#111;font-family:sans-serif;}
 canvas{display:block;background:#181818;}
 
 #ui{
-position:absolute;
-top:10px;
-left:10px;
-color:white;
-font-size:18px;
-z-index:10;
+    position:absolute;
+    top:10px;
+    left:10px;
+    color:white;
+    font-size:18px;
+    z-index:10;
 }
 
 #timer{
-position:absolute;
-top:10px;
-left:50%;
-transform:translateX(-50%);
-color:white;
-font-size:28px;
-font-weight:bold;
+    position:absolute;
+    top:10px;
+    left:50%;
+    transform:translateX(-50%);
+    color:white;
+    font-size:28px;
+    font-weight:bold;
 }
 
 #msg{
-position:absolute;
-top:50%;
-left:50%;
-transform:translate(-50%,-50%);
-color:white;
-font-size:32px;
-text-align:center;
-display:none;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    color:white;
+    font-size:34px;
+    text-align:center;
+    display:none;
 }
 </style>
 </head>
@@ -45,9 +47,10 @@ display:none;
 <body>
 
 <div id="ui">
-❤️ HP: <span id="hp">3</span> |
-🪙 Score: <span id="score">0</span> |
-🏆 Best: <span id="best">0</span>
+❤️ HP: <span id="hp">3</span><br>
+🪙 SCORE: <span id="score">0</span><br>
+🏆 BEST: <span id="best">0</span><br>
+⚡ DASH: <span id="dash">READY</span>
 </div>
 
 <div id="timer">30</div>
@@ -56,179 +59,203 @@ display:none;
 <canvas id="game"></canvas>
 
 <script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
 function resize(){
-canvas.width=innerWidth;
-canvas.height=innerHeight;
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
 }
 resize();
-addEventListener("resize",resize);
+addEventListener("resize", resize);
 
-let startTime=Date.now();
-let gameOver=false;
+// UI
+const hpEl = document.getElementById("hp");
+const scoreEl = document.getElementById("score");
+const bestEl = document.getElementById("best");
+const dashEl = document.getElementById("dash");
+const timerEl = document.getElementById("timer");
+const msgEl = document.getElementById("msg");
 
-const player={
-x:innerWidth/2,
-y:innerHeight/2,
-r:16,
-dx:0,
-dy:0,
-hp:3,
-lastTap:0
+let best = localStorage.getItem("best") || 0;
+bestEl.innerText = best;
+
+// Player
+const player = {
+    x: innerWidth/2,
+    y: innerHeight/2,
+    r: 16,
+    dx: 0,
+    dy: 0,
+    hp: 3
 };
 
-let score=0;
-let best=localStorage.getItem("best")||0;
-document.getElementById("best").innerText=best;
+let score = 0;
 
-const coins=[];
-const enemies=[];
-
-// 적 10마리
-for(let i=0;i<10;i++){
-enemies.push({
-x:Math.random()*innerWidth,
-y:Math.random()*innerHeight,
-r:18
-});
-}
-
-// 코인 생성
+// Coins
+const coins = [];
 function spawnCoin(){
-coins.push({
-x:Math.random()*innerWidth,
-y:Math.random()*innerHeight,
-r:10
-});
+    coins.push({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        r: 8
+    });
 }
-setInterval(spawnCoin,1200);
+for(let i=0;i<8;i++) spawnCoin();
 
-function setDir(x,y){
-const dx=x-player.x;
-const dy=y-player.y;
-const len=Math.sqrt(dx*dx+dy*dy)||1;
-player.dx=dx/len;
-player.dy=dy/len;
+// Enemies (10 types)
+const enemies = [];
+function spawnEnemy(){
+    const type = Math.floor(Math.random()*10);
+    const colors = ["#ff4d4d","#ff7a7a","#ff2e2e","#ff6666","#ff1a1a"];
+    enemies.push({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        r: 10 + type,
+        speed: 0.8 + type*0.2,
+        color: colors[type%colors.length]
+    });
 }
+for(let i=0;i<6;i++) spawnEnemy();
 
-// 터치 + 대시
-addEventListener("touchstart",(e)=>{
-const now=Date.now();
+// Timer
+let start = Date.now();
+let over = false;
 
-if(now-player.lastTap<250){
-dash();
-}
-player.lastTap=now;
-
-const t=e.touches[0];
-setDir(t.clientX,t.clientY);
-});
-
+// Dash
+let dashReady = true;
 function dash(){
-player.x+=player.dx*80;
-player.y+=player.dy*80;
+    if(!dashReady || over) return;
+    player.x += player.dx * 120;
+    player.y += player.dy * 120;
+    dashReady = false;
+    dashEl.innerText = "COOLDOWN";
+
+    setTimeout(()=>{
+        dashReady = true;
+        dashEl.innerText = "READY";
+    }, 2000);
 }
 
-addEventListener("mousedown",(e)=>{
-setDir(e.clientX,e.clientY);
+// Input
+function setDir(x,y){
+    const dx = x - player.x;
+    const dy = y - player.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    if(len===0) return;
+    player.dx = dx/len;
+    player.dy = dy/len;
+}
+
+addEventListener("touchstart",e=>{
+    const t=e.touches[0];
+    setDir(t.clientX,t.clientY);
 });
 
-function draw(x,y,r,c){
-ctx.beginPath();
-ctx.arc(x,y,r,0,Math.PI*2);
-ctx.fillStyle=c;
-ctx.fill();
-}
-
-function update(){
-
-if(gameOver) return;
-
-let t=(Date.now()-startTime)/1000;
-let remain=Math.max(0,Math.ceil(30-t));
-document.getElementById("timer").innerText=remain;
-
-// 이동
-player.x+=player.dx*4;
-player.y+=player.dy*4;
-
-// 경계
-player.x=Math.max(player.r,Math.min(canvas.width-player.r,player.x));
-player.y=Math.max(player.r,Math.min(canvas.height-player.r,player.y));
-
-// 코인
-coins.forEach((c,i)=>{
-let d=Math.hypot(player.x-c.x,player.y-c.y);
-if(d<player.r+c.r){
-score++;
-coins.splice(i,1);
-}
+addEventListener("touchmove",e=>{
+    const t=e.touches[0];
+    setDir(t.clientX,t.clientY);
 });
 
-// 적
-enemies.forEach(e=>{
-let dx=player.x-e.x;
-let dy=player.y-e.y;
-let d=Math.hypot(dx,dy)||1;
-
-e.x+=dx/d*1.8;
-e.y+=dy/d*1.8;
-
-if(d<player.r+e.r){
-player.hp--;
-enemies.splice(enemies.indexOf(e),1);
-document.getElementById("hp").innerText=player.hp;
-
-if(player.hp<=0){
-end(false);
-}
-}
+addEventListener("mousedown",e=>{
+    setDir(e.clientX,e.clientY);
 });
 
-if(t>=30){
-end(true);
-}
+addEventListener("dblclick",dash);
+addEventListener("keydown",e=>{
+    if(e.code==="Space") dash();
+});
+
+// Draw
+function circle(x,y,r,c){
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle=c;
+    ctx.fill();
 }
 
+// Game Over
 function end(win){
-gameOver=true;
+    over=true;
+    msgEl.style.display="block";
 
-if(win){
-score+=10;
+    if(win){
+        msgEl.innerHTML="🎉 클리어!";
+    }else{
+        msgEl.innerHTML="💀 실패!";
+    }
 
-if(score>best){
-best=score;
-localStorage.setItem("best",best);
+    if(score > best){
+        localStorage.setItem("best", score);
+    }
+
+    addEventListener("click",()=>location.reload(),{once:true});
 }
 
-document.getElementById("msg").innerHTML=
-"🎉 승리!<br>Score: "+score;
-}else{
-document.getElementById("msg").innerHTML=
-"💀 게임오버<br>Score: "+score;
-}
+// Loop
+function update(){
+    if(over) return;
 
-document.getElementById("msg").style.display="block";
+    const t = (Date.now()-start)/1000;
+    const remain = Math.max(0, Math.ceil(30-t));
+    timerEl.innerText = remain;
+
+    // move
+    player.x += player.dx * 4;
+    player.y += player.dy * 4;
+
+    // coins
+    for(let i=coins.length-1;i>=0;i--){
+        const c = coins[i];
+        const d = Math.hypot(player.x-c.x, player.y-c.y);
+        if(d < player.r + c.r){
+            coins.splice(i,1);
+            score += 10;
+            scoreEl.innerText = score;
+            spawnCoin();
+        }
+    }
+
+    // enemies
+    enemies.forEach(e=>{
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const d = Math.hypot(dx,dy);
+
+        if(d===0) return;
+
+        e.x += dx/d * e.speed;
+        e.y += dy/d * e.speed;
+
+        if(d < player.r + e.r){
+            player.hp--;
+            hpEl.innerText = player.hp;
+
+            player.x += 30;
+            player.y += 30;
+
+            if(player.hp<=0) end(false);
+        }
+    });
+
+    if(t>=30) end(true);
 }
 
 function render(){
-ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
-draw(player.x,player.y,player.r,"#4da6ff");
+    circle(player.x,player.y,player.r,"#3da5ff");
 
-coins.forEach(c=>draw(c.x,c.y,c.r,"gold"));
+    coins.forEach(c=>circle(c.x,c.y,c.r,"gold"));
 
-enemies.forEach(e=>draw(e.x,e.y,e.r,"red"));
+    enemies.forEach(e=>circle(e.x,e.y,e.r,e.color));
 }
 
 function loop(){
-update();
-render();
-requestAnimationFrame(loop);
+    update();
+    render();
+    requestAnimationFrame(loop);
 }
-
 loop();
 </script>
 
